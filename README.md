@@ -4,7 +4,9 @@ Index, search, and browse the Zotero annotations already imported into your Obsi
 
 It is designed to work with the **Zotero Integration** plugin and the **Highlightr** plugin (which provides the `hltr-*` highlight classes).
 
-![Research Annotations explorer showing annotation cards, filters, and paper grouping](assets/annotation-explorer.png)
+![Research Annotations explorer showing annotation cards, filters, and paper grouping](assets/annotation-explorer-2.png)
+
+> **Why it helps:** It brings every research annotation scattered across your vault into one searchable, filterable index. While you brainstorm and link notes, the evidence you need stays one click away — so you spend less time locating highlights and more time thinking about the research.
 
 ## Features
 
@@ -144,3 +146,11 @@ This template is known to work well with the plugin and with Highlightr’s `hlt
 ## Customizing
 
 You can use Claude — or any AI coding assistant — to edit and alter the plugin as you wish: change the parser, adjust the sidebar UI, add settings, or adapt the Zotero template to your own workflow. The source is split into small modules for parsing, indexing, querying, rendering, and navigation.
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the project structure, tests, coding guidelines, and the pull-request process. By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+[MIT](LICENSE)

@@ -1,0 +1,108 @@
+name: Bug report
+description: Report a reproducible problem with Research Annotations
+title: "[Bug]: "
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please include enough detail for someone
+        else to reproduce it. Remove private notes, vault paths, names, and
+        research content before submitting.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I removed private or sensitive content from this report.
+          required: true
+
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      placeholder: "Example: 1.7.7"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Research Annotations version
+      placeholder: "Example: 0.1.6"
+    validations:
+      required: true
+
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system
+      placeholder: "Example: Windows 11, macOS 15, Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest sequence of actions that triggers the problem.
+      placeholder: |
+        1. Open the annotation explorer
+        2. Select ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: note-snippet
+    attributes:
+      label: Sanitized note snippet
+      description: >
+        If the problem involves parsing, include the note's frontmatter and the
+        smallest annotation block that reproduces it. Replace real titles,
+        authors, tags, comments, and vault paths with placeholders.
+      render: markdown
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console errors or logs
+      description: Open the developer console with Ctrl/Cmd+Shift+I and paste relevant errors.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recordings
+      description: Drag images or short recordings here when the problem is visual.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Anything else that might help diagnose the issue.
+    validations:
+      required: false

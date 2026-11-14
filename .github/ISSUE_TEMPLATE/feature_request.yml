@@ -1,0 +1,69 @@
+name: Feature request
+description: Suggest an improvement to Research Annotations
+title: "[Feature]: "
+labels: ["enhancement", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Please describe the problem first, then the
+        solution you have in mind. Research Annotations is local-first and works
+        only with Markdown already in the vault.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This request fits the plugin's local-first, Markdown-only design.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the workflow or limitation you are running into.
+      placeholder: "When I ... I cannot ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or interface you would like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing workarounds, other plugins, or simpler approaches.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Annotation explorer UI
+        - Search, filters, sorting, or grouping
+        - Parsing or note compatibility
+        - Zotero links or navigation
+        - Settings
+        - Documentation or template
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Mockups, examples from other tools, or related issues.
+    validations:
+      required: false

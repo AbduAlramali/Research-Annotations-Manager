@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup, usage, and template questions
+    url: https://github.com/AbduAlramali/Research-Annotations-Manager#usage
+    about: Read the README before opening an issue.
+  - name: Contributing guide
+    url: https://github.com/AbduAlramali/Research-Annotations-Manager/blob/main/CONTRIBUTING.md
+    about: Setup, tests, project structure, and pull-request guidance.
+  - name: Code of Conduct
+    url: https://github.com/AbduAlramali/Research-Annotations-Manager/blob/main/CODE_OF_CONDUCT.md
+    about: Community expectations and reporting guidance.

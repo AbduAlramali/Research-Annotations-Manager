@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "node esbuild.config.mjs",
+		"build:prod": "node esbuild.config.mjs production",
 		"typecheck": "tsc --noEmit",
 		"test": "node --experimental-strip-types --test tests/parser.test.ts tests/query.test.ts"
 	},
