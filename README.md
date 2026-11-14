@@ -4,6 +4,8 @@ Index, search, and browse the Zotero annotations already imported into your Obsi
 
 It is designed to work with the **Zotero Integration** plugin and the **Highlightr** plugin (which provides the `hltr-*` highlight classes).
 
+![Research Annotations explorer showing annotation cards, filters, and paper grouping](assets/annotation-explorer.png)
+
 ## Features
 
 - Sidebar annotation explorer for all indexed papers.
