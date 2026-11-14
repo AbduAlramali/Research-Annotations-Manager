@@ -1,0 +1,17 @@
+{
+	"name": "research-annotations",
+	"version": "0.1.6",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "node esbuild.config.mjs",
+		"typecheck": "tsc --noEmit",
+		"test": "node --experimental-strip-types --test tests/parser.test.ts tests/query.test.ts"
+	},
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"esbuild": "^0.24.0",
+		"obsidian": "latest",
+		"typescript": "^5.6.0"
+	}
+}

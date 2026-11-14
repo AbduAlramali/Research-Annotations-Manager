@@ -1,0 +1,48 @@
+{#- Replaces ONLY the annotations block. Same <mark> output as before; adds an invisible %% header %% per annotation.
+    Verify field names (annotation.id, .type, .colorCategory) with the "Data Explorer" command before relying on them. -#}
+{% persist "annotations" %}
+{%- for annotation in annotations %}
+
+%% ra:begin id="{{ annotation.id }}" color="{{ annotation.colorCategory }}" type="{{ annotation.type }}" %%
+
+{%- if annotation.annotatedText %}
+{%- if annotation.colorCategory == "Yellow" %}
+<mark class="hltr-yellow">{{ annotation.annotatedText }}</mark>
+{%- elif annotation.colorCategory == "Blue" %}
+<mark class="hltr-blue">{{ annotation.annotatedText }}</mark>
+{%- elif annotation.colorCategory == "Green" %}
+<mark class="hltr-green">{{ annotation.annotatedText }}</mark>
+{%- elif annotation.colorCategory == "Cyan" %}
+<mark class="hltr-cyan">{{ annotation.annotatedText }}</mark>
+{%- elif annotation.colorCategory == "Purple" %}
+<mark class="hltr-purple">{{ annotation.annotatedText }}</mark>
+{%- elif annotation.colorCategory == "Red" %}
+<mark class="hltr-red">{{ annotation.annotatedText }}</mark>
+{%- elif annotation.colorCategory == "Orange" %}
+<mark class="hltr-orange">{{ annotation.annotatedText }}</mark>
+{%- elif annotation.colorCategory == "Magenta" %}
+<mark class="hltr-pink">{{ annotation.annotatedText }}</mark>
+{%- else %}
+<mark class="hltr-grey">{{ annotation.annotatedText }}</mark>
+{%- endif %}
+{%- endif %}
+
+{%- if annotation.imageRelativePath %}
+![[{{ annotation.imageRelativePath }}]]
+{%- endif %}
+
+{%- if annotation.comment %}
+**My comment:** {{ annotation.comment }}
+{%- endif %}
+
+{%- if annotation.tags %}
+**Annotation tags:** {% for tag in annotation.tags %}#{{ tag.tag }}{% if not loop.last %} {% endif %}{% endfor %}
+{%- endif %}
+
+{%- if annotation.pageLabel and annotation.desktopURI %}
+[Page {{ annotation.pageLabel }}]({{ annotation.desktopURI }})
+{%- endif %}
+
+%% ra:end %%
+{% endfor %}
+{% endpersist %}

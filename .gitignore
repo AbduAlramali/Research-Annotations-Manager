@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+main.js
+main.js.map
+*.map
+dist/
+
+# Obsidian plugin data
+data.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editors and OS files
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Local environment
+.env
+.env.*

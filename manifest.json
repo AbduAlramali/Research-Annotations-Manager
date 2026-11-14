@@ -1,0 +1,9 @@
+{
+    "id": "research-annotations",
+    "name": "Research Annotations",
+    "version": "0.1.6",
+    "minAppVersion": "1.5.0",
+    "description": "Index, search and display Zotero annotations from literature notes.",
+    "author": "Abdulrahman Alramali",
+    "isDesktopOnly": false
+}
