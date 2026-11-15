@@ -34,11 +34,19 @@ $$
 
 %% ra:end %%
 
+%% ra:begin id="LEGACY01" color="Green" type="highlight" %%
+
 <mark class="hltr-green">We fine-tune with LoRA.</mark>
 **My comment:** Method detail: \[ W' = W + BA \]
 **Annotation tags:** #lora
 [Page iv](zotero://open-pdf/library/items/BEPMNZ42?page=4&annotation=LEGACY01)
 
+%% ra:end %%
+
+%% ra:begin id="LEGACY02" color="Magenta" type="highlight" %%
+
 <mark class="hltr-pink">Hallucinated boxes remain common.</mark>
 [Page 7](zotero://open-pdf/library/items/BEPMNZ42?page=7&annotation=LEGACY02)
+
+%% ra:end %%
 %% end annotations %%

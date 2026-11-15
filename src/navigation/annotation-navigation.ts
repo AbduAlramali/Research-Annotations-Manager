@@ -1,6 +1,8 @@
 import { App, Keymap, MarkdownView, TFile } from "obsidian";
 import type { WorkspaceLeaf } from "obsidian";
 import { parseNote } from "../parser/annotation-parser.ts";
+import { DEFAULT_PARSE_LABELS } from "../parser/types.ts";
+import type { ParseLabels } from "../parser/types.ts";
 import type { ResearchAnnotation } from "../parser/types.ts";
 import { zoteroTargets } from "./zotero-uri.ts";
 import type { ZoteroTarget } from "./zotero-uri.ts";
@@ -10,16 +12,18 @@ import type { ZoteroTarget } from "./zotero-uri.ts";
  * re-read the note, re-parse, find the annotation by id, jump to its CURRENT line.
  * Cached line numbers are never trusted (notes change between indexing and clicking).
  */
-export async function openAnnotationInNote(app: App, a: ResearchAnnotation, evt?: MouseEvent | KeyboardEvent) {
+export async function openAnnotationInNote(app: App, a: ResearchAnnotation, evt?: MouseEvent | KeyboardEvent, labels: ParseLabels = DEFAULT_PARSE_LABELS) {
+	clearReadingHighlight();
 	const file = app.vault.getAbstractFileByPath(a.sourcePath);
 	if (!(file instanceof TFile)) return;
-	const fresh = parseNote(await app.vault.cachedRead(file), a.sourcePath).annotations.find((x) => x.id === a.id);
-	const line = fresh?.range.startLine ?? 0; // fall back to top of note if the annotation vanished
+	const fresh = parseNote(await app.vault.cachedRead(file), a.sourcePath, labels).annotations.find((x) => x.id === a.id);
+	const startLine = fresh?.range.startLine ?? 0; // fall back to top of note if the annotation vanished
+	const endLine = fresh?.range.endLine ?? startLine;
 	const leaf = app.workspace.getLeaf(evt ? Keymap.isModEvent(evt) : false);
 	const token = ++navigationToken;
 	// eState.line is accepted by openFile but is not documented in the public typings.
-	await leaf.openFile(file, { eState: { line } });
-	await scrollToLine(leaf, file, line, token);
+	await leaf.openFile(file, { eState: { line: startLine } });
+	await scrollToLine(leaf, file, startLine, endLine, token);
 }
 
 export function bestZoteroTarget(a: ResearchAnnotation): ZoteroTarget | undefined {
@@ -42,8 +46,14 @@ export function openZotero(t: ZoteroTarget) {
  */
 const RETRY_AT_MS = [0, 50, 150, 300, 600, 1000, 1500, 2000] as const;
 let navigationToken = 0;
+let readingHighlightEls: HTMLElement[] = [];
 
-async function scrollToLine(leaf: WorkspaceLeaf, file: TFile, line: number, token: number) {
+function clearReadingHighlight() {
+	for (const el of readingHighlightEls) el.removeClass("ra-note-target");
+	readingHighlightEls = [];
+}
+
+async function scrollToLine(leaf: WorkspaceLeaf, file: TFile, startLine: number, endLine: number, token: number) {
 	const view = await waitForMarkdownView(leaf, file, token);
 	if (!view) return;
 
@@ -70,7 +80,7 @@ async function scrollToLine(leaf: WorkspaceLeaf, file: TFile, line: number, toke
 			// rendered preview sections) can report the line as visible before the
 			// scroll offset has actually been applied. Re-applying is a no-op when
 			// the target is already in place.
-			applyScroll(view, line);
+			applyScroll(view, startLine, endLine);
 		}
 	} finally {
 		for (const el of targets) {
@@ -99,28 +109,32 @@ function isCurrentTarget(leaf: WorkspaceLeaf, view: MarkdownView, file: TFile, t
 	return view.file?.path === file.path && view.containerEl.isConnected;
 }
 
-function applyScroll(view: MarkdownView, line: number): void {
+function applyScroll(view: MarkdownView, startLine: number, endLine: number): void {
 	if (view.getMode() === "preview") {
-		applyReadingScroll(view, line);
+		applyReadingScroll(view, startLine, endLine);
 		return;
 	}
-	// Source and Live Preview share the editor. Center the line so it is not left
-	// flush against the bottom edge after layout settles.
-	const pos = { line, ch: 0 };
+	// Source and Live Preview share the editor. Select the whole ra block so the
+	// hidden %% ra:begin … ra:end %% markers are revealed as one range.
+	const from = { line: startLine, ch: 0 };
+	const to = { line: endLine, ch: view.editor.getLine(endLine)?.length ?? 0 };
 	try {
-		view.editor.setCursor(pos);
+		view.editor.setSelection(from, to);
 	} catch {
 		/* editor may be between modes; the next retry will try again */
 	}
 	try {
-		view.editor.scrollIntoView({ from: pos, to: pos }, true);
+		view.editor.scrollIntoView({ from, to }, true);
 	} catch {
 		/* view not measured yet; the next retry will try again */
 	}
 }
 
-function applyReadingScroll(view: MarkdownView, line: number): void {
+function applyReadingScroll(view: MarkdownView, startLine: number, endLine: number): void {
 	const renderer = previewRenderer(view);
+	// The ra:begin line is a hidden comment. Target the first rendered section in
+	// the block so the visible highlight/comment/tags are what gets centered.
+	const line = firstVisibleLine(view, startLine, endLine) ?? startLine;
 	let applied = false;
 
 	// Reading mode positions by line via its renderer. `center` is the same option
@@ -154,6 +168,9 @@ function applyReadingScroll(view: MarkdownView, line: number): void {
 	// If virtual rendering has not produced the section yet, this is a no-op and
 	// the next retry handles it. When it has, it guarantees the target is on screen.
 	if (!readingLineIsVisible(view, line)) scrollReadingSection(view, line);
+	// Highlight the rendered sections belonging to the annotation block. The
+	// ra: markers themselves are hidden comments, so highlight the visible parts.
+	highlightReadingRange(view, startLine, endLine);
 }
 
 interface PreviewSectionLike {
@@ -177,6 +194,42 @@ function previewParts(view: MarkdownView): { previewEl?: HTMLElement; sections?:
 	const renderer = previewRenderer(view);
 	const previewEl = renderer?.previewEl ?? view.contentEl.querySelector<HTMLElement>(".markdown-preview-view") ?? undefined;
 	return { previewEl, sections: renderer?.sections };
+}
+
+function firstVisibleLine(view: MarkdownView, startLine: number, endLine: number): number | undefined {
+	const { sections } = previewParts(view);
+	if (!sections?.length) return undefined;
+	for (const section of sections) {
+		const start = section.start?.line;
+		if (typeof start !== "number") continue;
+		const lines = Math.max(1, section.lines ?? 1);
+		if (start > endLine || start + lines <= startLine) continue;
+		const el = section.el;
+		if (el?.isConnected && el.getBoundingClientRect().height > 0) return Math.max(start, startLine);
+	}
+	return undefined;
+}
+
+function highlightReadingRange(view: MarkdownView, startLine: number, endLine: number): void {
+	const { sections } = previewParts(view);
+	if (!sections?.length) return;
+
+	const els: HTMLElement[] = [];
+	for (const section of sections) {
+		const start = section.start?.line;
+		if (typeof start !== "number") continue;
+		const lines = Math.max(1, section.lines ?? 1);
+		if (start > endLine || start + lines <= startLine) continue;
+		const el = section.el;
+		if (el?.isConnected && el.getBoundingClientRect().height > 0) els.push(el);
+	}
+	if (!els.length) return;
+
+	const same = els.length === readingHighlightEls.length && els.every((el, i) => el === readingHighlightEls[i]);
+	if (same) return;
+	clearReadingHighlight();
+	for (const el of els) el.addClass("ra-note-target");
+	readingHighlightEls = els;
 }
 
 function readingLineIsVisible(view: MarkdownView, line: number): boolean {

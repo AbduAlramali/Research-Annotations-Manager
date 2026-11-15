@@ -5,6 +5,7 @@ import { applyScope, buildFacets, defaultQuery, runQuery, UNCATEGORIZED } from "
 import type { FacetOption, Group, GroupKey, QueryState, Scope, SortKey, Tri } from "../query/annotation-query.ts";
 import type { IndexedAnnotation } from "../index/annotation-index.ts";
 import { renderAnnotationCard } from "../renderer/annotation-card.ts";
+import { toParseLabels } from "../settings/settings.ts";
 
 export const VIEW_TYPE = "research-annotations-view";
 const BATCH = 25;
@@ -34,6 +35,7 @@ export class AnnotationView extends ItemView {
 	private searchEl!: HTMLInputElement;
 	private controlsEl!: HTMLElement;
 	private catEl!: HTMLElement;
+	private tagEl!: HTMLElement;
 	private chipsEl!: HTMLElement;
 	private statusEl!: HTMLElement;
 	private listEl!: HTMLElement;
@@ -70,7 +72,8 @@ export class AnnotationView extends ItemView {
 		details.open = true;
 		details.createEl("summary", { text: "Filters, sorting & grouping" });
 		this.controlsEl = details.createDiv({ cls: "ra-row ra-controls" });
-		this.catEl = details.createDiv({ cls: "ra-row ra-cats" });
+		this.catEl = details.createDiv({ cls: "ra-row ra-cats ra-filter-row" });
+		this.tagEl = details.createDiv({ cls: "ra-row ra-tags ra-filter-row" });
 		this.chipsEl = details.createDiv({ cls: "ra-row ra-chips" });
 		this.statusEl = bar.createDiv({ cls: "ra-status" });
 		this.listEl = root.createDiv({ cls: "ra-list" });
@@ -184,8 +187,8 @@ export class AnnotationView extends ItemView {
 	}
 
 	private renderCategories(items: IndexedAnnotation[], ctx: { meta: (p: string) => any; colors: any }) {
-		const el = this.catEl, q = this.q;
-		el.empty();
+		const row = this.catEl, q = this.q;
+		row.empty();
 		const present = new Map<string, { cls?: string; n: number }>();
 		for (const o of buildFacets(applyScope(items, q.scope, ctx), ctx).categories) {
 			const cls = Object.keys(ctx.colors).find((c) => ctx.colors[c].alias === o.value);
@@ -193,9 +196,10 @@ export class AnnotationView extends ItemView {
 		}
 		const order = [...new Set(Object.values<any>(ctx.colors).map((d) => d.alias as string))];
 		const names = [...order.filter((a) => present.has(a)), ...(present.has(UNCATEGORIZED) ? [UNCATEGORIZED] : [])];
+		row.createSpan({ cls: "ra-filter-label", text: "Category" });
 		for (const name of names) {
 			const p = present.get(name)!;
-			const chip = el.createEl("button", { cls: "ra-chip ra-cat" + (q.categories.includes(name) ? " is-active" : ""), attr: { "data-ra-color": p.cls ?? "none" } });
+			const chip = row.createEl("button", { cls: "ra-chip ra-cat" + (q.categories.includes(name) ? " is-active" : ""), attr: { "data-ra-color": p.cls ?? "none" } });
 			chip.createSpan({ cls: "ra-swatch" });
 			chip.createSpan({ text: `${name === UNCATEGORIZED ? "Uncategorized" : name} ${p.n}` });
 			chip.addEventListener("click", () => this.toggleCategory(name));
@@ -204,6 +208,37 @@ export class AnnotationView extends ItemView {
 
 	private toggleCategory(name: string) {
 		const l = this.q.categories, i = l.indexOf(name);
+		if (i >= 0) l.splice(i, 1); else l.push(name);
+		this.changed();
+	}
+
+	private renderTags(items: IndexedAnnotation[], ctx: { meta: (p: string) => any; colors: any }) {
+		const row = this.tagEl, q = this.q;
+		row.empty();
+		const tags = buildFacets(applyScope(items, q.scope, ctx), ctx).tags;
+		// Keep an active tag in the row even if the current scope no longer has it,
+		// so it can still be toggled off from here.
+		for (const selected of q.tags) {
+			if (!tags.some((t) => t.value === selected)) tags.push({ value: selected, label: `#${selected}`, count: 0 });
+		}
+		row.createSpan({ cls: "ra-filter-label", text: "Tags" });
+		if (!tags.length) {
+			row.createSpan({ cls: "ra-filter-empty", text: "No tags in the current scope" });
+			return;
+		}
+		for (const t of tags) {
+			const chip = row.createEl("button", {
+				cls: "ra-chip ra-tag" + (q.tags.includes(t.value) ? " is-active" : ""),
+				attr: { title: `Filter by #${t.value}` },
+			});
+			chip.createSpan({ text: `#${t.value}` });
+			chip.createSpan({ cls: "ra-chip__count", text: String(t.count) });
+			chip.addEventListener("click", () => this.toggleTag(t.value));
+		}
+	}
+
+	private toggleTag(name: string) {
+		const l = this.q.tags, i = l.indexOf(name);
 		if (i >= 0) l.splice(i, 1); else l.push(name);
 		this.changed();
 	}
@@ -220,7 +255,6 @@ export class AnnotationView extends ItemView {
 		const rm = (l: string[], v: string) => () => void l.splice(l.indexOf(v), 1);
 		for (const p of q.papers) chip(`Paper: ${meta(p).title}`, rm(q.papers, p));
 		for (const p of q.projects) chip(`Project: ${this.plugin.projectOptions().find((o) => o.value === p)?.label ?? p}`, rm(q.projects, p));
-		for (const t of q.tags) chip(`#${t}`, rm(q.tags, t));
 		for (const c of q.colors) chip(`Color: ${this.plugin.settings.colors[c]?.zotero ?? "No color"}`, rm(q.colors, c));
 	}
 
@@ -237,6 +271,7 @@ export class AnnotationView extends ItemView {
 		this.renderScope(meta);
 		this.renderControls(items, ctx);
 		this.renderCategories(items, ctx);
+		this.renderTags(items, ctx);
 		this.renderChips(meta);
 		const idx = this.plugin.scanning ? " · indexing…" : "";
 		this.statusEl.setText(`${res.total} annotation${res.total === 1 ? "" : "s"} in ${res.papers} paper${res.papers === 1 ? "" : "s"}${idx}`);
@@ -270,7 +305,7 @@ export class AnnotationView extends ItemView {
 			colors: this.plugin.settings.colors,
 			getMeta: this.plugin.makeMeta(),
 			showPaper: q.group !== "paper" && q.scope.kind !== "paper",
-			showLegacyBadge: this.plugin.settings.showLegacyBadge,
+			labels: toParseLabels(this.plugin.settings),
 			onTag: (t: string) => { if (!q.tags.includes(t)) { q.tags.push(t); this.changed(); } },
 			onCategory: (a: string) => { if (!q.categories.includes(a)) { q.categories.push(a); this.changed(); } },
 		};

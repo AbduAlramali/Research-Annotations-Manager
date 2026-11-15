@@ -4,7 +4,7 @@ Index, search, and browse the Zotero annotations already imported into your Obsi
 
 It is designed to work with the **Zotero Integration** plugin and the **Highlightr** plugin (which provides the `hltr-*` highlight classes).
 
-![Research Annotations explorer showing annotation cards, filters, and paper grouping](assets/annotation-explorer-2.png)
+![Research Annotations explorer showing annotation cards, filters, and paper grouping](assets/annotation-explorer.png)
 
 > **Why it helps:** It brings every research annotation scattered across your vault into one searchable, filterable index. While you brainstorm and link notes, the evidence you need stays one click away — so you spend less time locating highlights and more time thinking about the research.
 
@@ -70,14 +70,28 @@ projects:
 - `authors` (or `author`) is shown on annotation cards. Both a YAML list and a single string work.
 - `projects` links the paper to one or more project notes. Use `projects: []` when the paper has no project. The property name is configurable in **Settings → Research Annotations**.
 
-The note body must also contain the imported Zotero annotations. The template below writes them inside a `%% begin annotations %%` / `%% end annotations %%` block and includes the `zotero://` links the plugin uses for stable annotation IDs and Zotero buttons.
+The note body must also contain the imported Zotero annotations. The template below wraps every annotation in `%% ra:begin … %%` / `%% ra:end %%` markers and includes the `zotero://` links the plugin uses for stable annotation IDs and Zotero buttons.
 
-### Parser modes
+### Annotation format
 
-- **Legacy (used by the template below):** annotations inside the persist block are segmented using page links. Boundaries are inferred.
-- **Explicit (`ra:` markers):** annotations wrapped in `%% ra:begin id="…" color="…" type="…" %%` … `%% ra:end %%` are treated as authoritative. The parser supports this mode and it is covered by automated tests, but it has not yet been manually verified in Obsidian. These are hidden Obsidian comment markers, not tags.
+Every annotation must be inside an explicit `ra:` block:
 
-The template below does **not** emit `ra:` markers, so it currently uses the legacy parser. Additional updates may come in the future to use the `ra:` markers for authoritative boundaries, explicit color/type metadata, and more reliable IDs.
+```text
+%% ra:begin id="ZOTEROKEY" color="Cyan" type="highlight" %%
+<mark class="hltr-cyan">Quoted text</mark>
+**Comment:** optional comment
+**Tags:** #tag-one #tag-two
+[Page 5](zotero://open-pdf/library/items/ITEMKEY?page=5&annotation=ZOTEROKEY)
+%% ra:end %%
+```
+
+- `id` is the stable Zotero annotation key. It is used for navigation and deduplication.
+- `color` is authoritative when present; it maps to the `hltr-*` classes and the configurable semantic aliases.
+- `type` is stored for future use; it does not affect filtering yet.
+- All tags on the configured tags line are indexed and filterable.
+- Category filters use the highlight color; tag filters use every tag on the tags line.
+- Annotations outside `ra:` blocks are ignored. Legacy heuristic parsing has been removed.
+- The comment and tags line labels are configurable in **Settings → Research Annotations**. Defaults are `Comment, My comment` and `Tags, Annotation tags`.
 
 ## Zotero Integration template
 
@@ -90,7 +104,8 @@ This template is known to work well with the plugin and with Highlightr’s `hlt
 {% persist "annotations" %}
 {%- for annotation in annotations %}
 
-{%- if annotation.annotatedText %}
+%% ra:begin id="{{ annotation.id }}" color="{{ annotation.colorCategory }}" type="{{ annotation.type }}" %%
+{% if annotation.annotatedText %}
 {%- if annotation.colorCategory == "Yellow" %}
 <mark class="hltr-yellow">❝{{ annotation.annotatedText }}❞</mark>
 {%- elif annotation.colorCategory == "Blue" %}
@@ -117,17 +132,18 @@ This template is known to work well with the plugin and with Highlightr’s `hlt
 {%- endif %}
 
 {%- if annotation.comment %}
-**My comment:** {{ annotation.comment }}
+**Comment:** {{ annotation.comment }}
 {%- endif %}
 
 {%- if annotation.tags %}
-**Annotation tags:** {% for tag in annotation.tags %}#{{ tag.tag }}{% if not loop.last %} {% endif %}{% endfor %}
+**Tags:** {% for tag in annotation.tags %}#{{ tag.tag }}{% if not loop.last %} {% endif %}{% endfor %}
 {%- endif %}
 
 {%- if annotation.pageLabel and annotation.desktopURI %}
 [Page {{ annotation.pageLabel }}]({{ annotation.desktopURI }})
 {%- endif %}
 
+%% ra:end %%
 {% endfor %}
 {% endpersist %}
 ```
@@ -137,7 +153,8 @@ This template is known to work well with the plugin and with Highlightr’s `hlt
 ## Settings
 
 - **Folders to index** — limit indexing to specific folders; leave empty for the whole vault.
-- **Zotero Integration block name** — the name in `{% persist "…" %}`.
+- **Comment label(s)** — comma-separated labels used before comments, without the colon. Defaults: `Comment, My comment`.
+- **Tags label(s)** — comma-separated labels used before tags, without the colon. Defaults: `Tags, Annotation tags`.
 - **Project property** — frontmatter key containing project links.
 - **Infer color from tag emoji** — infer a color for annotations without a highlight color, such as image annotations.
 - **Semantic color aliases** — rename Zotero colors for filtering, grouping, and display.

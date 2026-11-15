@@ -53,6 +53,14 @@ test("user's real note shape: 4 annotations, image annotation colour inferred fr
 	assert.equal(items.find((i) => i.a.id === "5J3S4AIN")!.a.comment, "$$\\frac{1}{n}$$ is easy");
 });
 
+test("filter: every tag on an annotation is visible and filterable", () => {
+	const idx = new AnnotationIndex();
+	idx.updateNote("m.md", '%% ra:begin id="MULTI" color="Yellow" %%\n<mark class="hltr-yellow">multi</mark>\n**Tags:** #first #second\n%% ra:end %%');
+	const mctx = { meta: () => ({ path: "m.md", title: "Multi", authors: [], projects: [] }), colors: DEFAULT_COLORS };
+	assert.deepEqual(buildFacets(idx.all(), mctx).tags.map((t) => t.value).sort(), ["first", "second"]);
+	assert.equal(runQuery(idx.all(), { ...defaultQuery(), tags: ["second"] }, mctx).total, 1);
+});
+
 test("colour inference: only unambiguous", () => {
 	assert.equal(inferColorFromTags(["note/🔴critical"]), "hltr-red");
 	assert.equal(inferColorFromTags(["note/🔴a", "note/🟡b"]), undefined);

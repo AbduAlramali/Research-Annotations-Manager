@@ -101,16 +101,15 @@ Obsidian UI classes, and renderer code should not re-parse Markdown.
 
 ### Parser compatibility
 
-There are two supported annotation formats:
+Annotations must be wrapped in `%% ra:begin … %%` and `%% ra:end %%`. The
+parser is explicit-only: annotations outside those markers are ignored, and
+there is no legacy page-link segmentation fallback.
 
-- **Legacy:** annotations inside a Zotero Integration persist block, segmented
-  by page links.
-- **Explicit:** annotations wrapped in `%% ra:begin … %%` and `%% ra:end %%`.
-
-The explicit format is authoritative when present. The legacy format must remain
-supported because the bundled Zotero template still emits it. Parser changes
-should be tolerant of malformed notes: return warnings and partial results
-instead of throwing.
+The per-annotation header carries the stable Zotero key, the authoritative
+color, and the annotation type. The comment and tags line labels are
+configurable; defaults accept both `Comment`/`My comment` and
+`Tags`/`Annotation tags`. Parser changes should be tolerant of malformed notes:
+return warnings and partial results instead of throwing.
 
 When adding a parser case, add a sanitized fixture and a focused test. Do not
 include real personal notes, vault paths, names, or private research content in

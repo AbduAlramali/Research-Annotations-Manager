@@ -1,10 +1,11 @@
 import { App, Component, MarkdownRenderChild, MarkdownRenderer, Menu } from "obsidian";
-import type { ResearchAnnotation } from "../parser/types.ts";
+import type { ParseLabels, ResearchAnnotation } from "../parser/types.ts";
 import type { ColorTable } from "../settings/settings.ts";
 import type { NoteMeta } from "../index/note-meta.ts";
 import { normalizeMath } from "./math.ts";
 import { openAnnotationInNote, openZotero } from "../navigation/annotation-navigation.ts";
 import { zoteroTargets } from "../navigation/zotero-uri.ts";
+import { openImageLightbox } from "./image-lightbox.ts";
 
 export interface CardContext {
 	app: App;
@@ -14,7 +15,8 @@ export interface CardContext {
 	getMeta: (path: string) => NoteMeta;
 	/** Hide the paper title (e.g. when grouped by paper). */
 	showPaper?: boolean;
-	showLegacyBadge?: boolean;
+	/** Labels used to re-find the annotation when opening the source note. */
+	labels?: ParseLabels;
 	onTag?: (tag: string) => void;
 	onCategory?: (alias: string) => void;
 }
@@ -37,7 +39,7 @@ export async function renderAnnotationCard(parent: HTMLElement, a: ResearchAnnot
 	const head = card.createDiv({ cls: "ra-card__head" });
 	if (ctx.showPaper !== false) {
 		const link = head.createEl("a", { cls: "ra-card__paper", text: meta.title, href: "#" });
-		link.addEventListener("click", (e) => { e.preventDefault(); void openAnnotationInNote(ctx.app, a, e); });
+		link.addEventListener("click", (e) => { e.preventDefault(); void openAnnotationInNote(ctx.app, a, e, ctx.labels); });
 	}
 	if (a.pageLabel) head.createSpan({ cls: "ra-card__page", text: `p. ${a.pageLabel}` });
 	if (a.colorClass) {
@@ -54,9 +56,6 @@ export async function renderAnnotationCard(parent: HTMLElement, a: ResearchAnnot
 		const shown = meta.authors.slice(0, 3).join(", ") + (meta.authors.length > 3 ? " et al." : "");
 		head.createDiv({ cls: "ra-card__authors", text: shown });
 	}
-	if (a.mode === "legacy" && ctx.showLegacyBadge)
-		head.createSpan({ cls: "ra-card__flag", text: "legacy parse", attr: { title: "Boundaries inferred; add ra: markers for authoritative parsing" } });
-
 	// 2 ─ highlight: block container, NOT an inline <mark>, so display math and paragraphs are legal
 	if (a.highlight) await renderMd(ctx, a.highlight, card.createDiv({ cls: "ra-card__hl markdown-rendered" }), a.sourcePath);
 
@@ -65,8 +64,22 @@ export async function renderAnnotationCard(parent: HTMLElement, a: ResearchAnnot
 		const box = card.createDiv({ cls: "ra-card__imgs" });
 		for (const target of a.images) {
 			const f = ctx.app.metadataCache.getFirstLinkpathDest(target, a.sourcePath);
-			if (f) box.createEl("img", { attr: { src: ctx.app.vault.getResourcePath(f), alt: f.basename, loading: "lazy" } });
-			else box.createDiv({ cls: "ra-card__missing", text: `Image not found: ${target}` });
+			if (!f) { box.createDiv({ cls: "ra-card__missing", text: `Image not found: ${target}` }); continue; }
+			const img = box.createEl("img", {
+				attr: {
+					src: ctx.app.vault.getResourcePath(f),
+					alt: f.basename,
+					loading: "lazy",
+					title: "Open image full screen",
+					tabindex: "0",
+					role: "button",
+				},
+			});
+			const open = () => openImageLightbox(ctx.app, img.src, f.basename);
+			img.addEventListener("click", open);
+			img.addEventListener("keydown", (e) => {
+				if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); }
+			});
 		}
 	}
 
@@ -81,7 +94,7 @@ export async function renderAnnotationCard(parent: HTMLElement, a: ResearchAnnot
 		if (ctx.onTag) chip.addEventListener("click", () => ctx.onTag!(t));
 	}
 	const nav = foot.createDiv({ cls: "ra-card__nav" });
-	nav.createEl("button", { text: "Open in note" }).addEventListener("click", (e) => void openAnnotationInNote(ctx.app, a, e));
+	nav.createEl("button", { text: "Open in note" }).addEventListener("click", (e) => void openAnnotationInNote(ctx.app, a, e, ctx.labels));
 	const targets = zoteroTargets(a.zotero);
 	if (targets.length) {
 		const btn = nav.createEl("button", { text: `Zotero · ${PRECISION_LABEL[targets[0].precision]}` });

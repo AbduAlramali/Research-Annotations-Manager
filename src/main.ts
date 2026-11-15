@@ -5,7 +5,7 @@ import { extractLinkTargets, parseAuthors } from "./index/note-meta.ts";
 import type { NoteMeta } from "./index/note-meta.ts";
 import { defaultQuery } from "./query/annotation-query.ts";
 import type { FacetOption, QueryState } from "./query/annotation-query.ts";
-import { DEFAULT_SETTINGS, mergeSettings } from "./settings/settings.ts";
+import { DEFAULT_SETTINGS, mergeSettings, toParseLabels } from "./settings/settings.ts";
 import type { RASettings } from "./settings/settings.ts";
 import { RASettingTab } from "./settings/settings-tab.ts";
 import { AnnotationView, VIEW_TYPE } from "./views/annotation-view.ts";
@@ -72,7 +72,7 @@ export default class RAPlugin extends Plugin {
 	// ───────────── settings / index plumbing ─────────────
 
 	private applyIndexConfig() {
-		this.index.config = { persistName: this.settings.persistBlockName, inferColor: this.settings.inferColorFromTags };
+		this.index.config = { inferColor: this.settings.inferColorFromTags, labels: toParseLabels(this.settings) };
 	}
 
 	async saveSettings(reindex = false) {

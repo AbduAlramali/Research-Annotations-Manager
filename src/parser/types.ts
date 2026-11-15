@@ -4,16 +4,13 @@ export interface ResearchAnnotation {
 	/** Zotero annotation key (stable). Falls back to a content hash (unstable) only when no key exists. */
 	id: string;
 	sourcePath: string;
-	/** explicit = delimited by %% ra:begin/end %% markers; legacy = segmented heuristically. */
-	mode: "explicit" | "legacy";
-	confidence: "authoritative" | "heuristic";
 	/** Inner Markdown of the highlight, <mark> wrapper removed. Everything else untouched. */
 	highlight?: string;
 	comment?: string;
 	/** Link targets of embedded images (wikilink target or Markdown path), alias/size stripped. */
 	images: string[];
 	tags: string[];
-	/** Zotero colorCategory as written in the header (explicit) – may be absent in legacy. */
+	/** Zotero colorCategory as written in the ra header. */
 	colorName?: string;
 	/** Normalised CSS class, e.g. hltr-pink. Key into the semantic-alias table. */
 	colorClass?: string;
@@ -28,7 +25,7 @@ export interface ResearchAnnotation {
 }
 
 export interface ParseWarning {
-	kind: "duplicate-id" | "unterminated-block" | "id-is-hash" | "missing-id";
+	kind: "duplicate-id" | "unterminated-block" | "missing-id";
 	line: number;
 	message: string;
 }
@@ -37,3 +34,14 @@ export interface ParsedNote {
 	annotations: ResearchAnnotation[];
 	warnings: ParseWarning[];
 }
+
+/** Labels used in the annotation Markdown. Stored without the trailing colon. */
+export interface ParseLabels {
+	commentLabels: string[];
+	tagsLabels: string[];
+}
+
+export const DEFAULT_PARSE_LABELS: ParseLabels = {
+	commentLabels: ["Comment", "My comment"],
+	tagsLabels: ["Tags", "Annotation tags"],
+};

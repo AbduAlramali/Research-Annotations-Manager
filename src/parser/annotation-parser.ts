@@ -1,4 +1,5 @@
-import type { ParsedNote, ParseWarning, ResearchAnnotation } from "./types.ts";
+import { DEFAULT_PARSE_LABELS } from "./types.ts";
+import type { ParsedNote, ParseLabels, ParseWarning, ResearchAnnotation } from "./types.ts";
 import { parseZoteroUri } from "../navigation/zotero-uri.ts";
 import type { ZoteroLink } from "../navigation/zotero-uri.ts";
 
@@ -6,11 +7,8 @@ const BEGIN = /^%%\s*ra:begin\b(.*?)%%\s*$/;
 const END = /^%%\s*ra:end\s*%%\s*$/;
 const ATTR = /([\w-]+)=(?:"([^"]*)"|(\S+))/g;
 const PAGE_LINE = /^\[Page\s+([^\]]*)\]\((zotero:\/\/[^)\s]+)\)\s*$/;
-const COMMENT_LABEL = /^\*\*My comment:\*\*[ \t]?/;
-const TAGS_LINE = /^\*\*Annotation tags:\*\*\s*(.*)$/;
 const MARK_WRAP = /^<mark\s+class="(hltr-[\w-]+)"\s*>([\s\S]*)<\/mark>$/;
 const IMG_LINE = /^\s*(?:!\[\[([^\]]+)\]\]|!\[[^\]]*\]\(([^)]+)\))\s*$/;
-const START_LINE = /^(<mark\s+class="hltr-|!\[\[|!\[[^\]]*\]\(|\*\*My comment:\*\*)/;
 
 const COLOR_TO_CLASS: Record<string, string> = {
 	yellow: "hltr-yellow", orange: "hltr-orange", magenta: "hltr-pink", pink: "hltr-pink",
@@ -39,8 +37,26 @@ interface Body {
 	pageLabel?: string; zotero?: ZoteroLink; htmlClass?: string;
 }
 
-/** Shared by both modes: peel page link (last), tags line, comment (from label), then image + highlight head. */
-function parseBody(lines: string[]): Body {
+function escapeLabel(label: string): string {
+	return label.trim().replace(/:+$/, "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function labelAlternatives(labels: string[]): string {
+	return labels.map(escapeLabel).filter(Boolean).join("|");
+}
+
+function commentMatcher(labels: string[]): RegExp {
+	return new RegExp(`^(?:\\*\\*)?(?:${labelAlternatives(labels)}):(?:\\*\\*)?[ \\t]?`, "i");
+}
+
+function tagsMatcher(labels: string[]): RegExp {
+	return new RegExp(`^(?:\\*\\*)?(?:${labelAlternatives(labels)}):(?:\\*\\*)?\\s*(.*)$`, "i");
+}
+
+/** Peel page link (last), tags line, comment (from label), then image + highlight head. */
+function parseBody(lines: string[], labels: ParseLabels): Body {
+	const commentRe = commentMatcher(labels.commentLabels);
+	const tagsRe = tagsMatcher(labels.tagsLabels);
 	let end = lines.length;
 	while (end > 0 && lines[end - 1].trim() === "") end--;
 
@@ -52,16 +68,16 @@ function parseBody(lines: string[]): Body {
 
 	const tags: string[] = [];
 	for (let k = end - 1; k >= 0; k--) {
-		const m = TAGS_LINE.exec(lines[k]);
+		const m = tagsRe.exec(lines[k]);
 		if (m) {
-			for (const t of m[1].matchAll(/#[^\s#]+/g)) tags.push(t[0].slice(1));
+			for (const t of m[1].matchAll(/#([^\s#,;]+)/g)) tags.push(t[1]);
 			end = k;
 			break;
 		}
 	}
 
 	let commentIdx = -1;
-	for (let k = 0; k < end; k++) if (COMMENT_LABEL.test(lines[k])) { commentIdx = k; break; }
+	for (let k = 0; k < end; k++) if (commentRe.test(lines[k])) { commentIdx = k; break; }
 	const headEnd = commentIdx >= 0 ? commentIdx : end;
 
 	const images: string[] = [];
@@ -78,7 +94,7 @@ function parseBody(lines: string[]): Body {
 	let comment: string | undefined;
 	if (commentIdx >= 0) {
 		const cl = lines.slice(commentIdx, end);
-		cl[0] = cl[0].replace(COMMENT_LABEL, "");
+		cl[0] = cl[0].replace(commentRe, "");
 		comment = cl.join("\n").trim() || undefined;
 	}
 	return { highlight: highlight || undefined, comment, images, tags, pageLabel, zotero, htmlClass };
@@ -90,13 +106,11 @@ function parseAttrs(s: string): Record<string, string> {
 	return out;
 }
 
-export function parseNote(text: string, sourcePath: string, persistName = "annotations"): ParsedNote {
+export function parseNote(text: string, sourcePath: string, labels: ParseLabels = DEFAULT_PARSE_LABELS): ParsedNote {
 	const lines = text.split(/\r?\n/);
 	const warnings: ParseWarning[] = [];
 	const found: ResearchAnnotation[] = [];
-	const covered = new Array<boolean>(lines.length).fill(false);
-
-	// ── Mode A: explicit blocks (authoritative) ──
+	// ── Explicit blocks only: an annotation without ra: markers is ignored. ──
 	for (let i = 0; i < lines.length; i++) {
 		const b = BEGIN.exec(lines[i]);
 		if (!b) continue;
@@ -107,7 +121,7 @@ export function parseNote(text: string, sourcePath: string, persistName = "annot
 			continue;
 		}
 		const attrs = parseAttrs(b[1]);
-		const body = parseBody(lines.slice(i + 1, j));
+		const body = parseBody(lines.slice(i + 1, j), labels);
 		const colorClass = toColorClass(attrs.color) ?? body.htmlClass;
 		let id = attrs.id || body.zotero?.annotationKey;
 		if (!id) {
@@ -115,50 +129,14 @@ export function parseNote(text: string, sourcePath: string, persistName = "annot
 			warnings.push({ kind: "missing-id", line: i, message: "no id in header; content hash used (unstable)" });
 		}
 		found.push({
-			id, sourcePath, mode: "explicit", confidence: "authoritative",
+			id, sourcePath,
 			highlight: body.highlight, comment: body.comment, images: body.images, tags: body.tags,
 			colorName: attrs.color || undefined, colorClass, annotationType: attrs.type || undefined,
 			pageLabel: body.pageLabel, zotero: body.zotero,
 			range: { startLine: i, endLine: j }, originalMarkdown: lines.slice(i, j + 1).join("\n"),
 		});
-		for (let k = i; k <= j; k++) covered[k] = true;
 		i = j;
 	}
-
-	// ── Mode B: legacy segmentation, bounded by the persist markers when present ──
-	const pb = lines.findIndex((l) => l.trim() === `%% begin ${persistName} %%`);
-	const pe = lines.findIndex((l) => l.trim() === `%% end ${persistName} %%`);
-	const rs = pb >= 0 && pe > pb ? pb + 1 : 0;
-	const re = pb >= 0 && pe > pb ? pe : lines.length;
-
-	let buf: number[] = [];
-	const flush = (closedByPage: boolean) => {
-		while (buf.length && !START_LINE.test(lines[buf[0]])) buf.shift();
-		if (buf.length) {
-			const seg = buf.map((n) => lines[n]);
-			const body = parseBody(seg);
-			let id = body.zotero?.annotationKey;
-			if (!id) {
-				id = "h-" + fnv1a(seg.join("\n"));
-				warnings.push({ kind: "id-is-hash", line: buf[0], message: closedByPage
-					? "legacy annotation without annotation key in link; hash id is unstable"
-					: "legacy segment without page link; boundary is a guess" });
-			}
-			found.push({
-				id, sourcePath, mode: "legacy", confidence: "heuristic",
-				highlight: body.highlight, comment: body.comment, images: body.images, tags: body.tags,
-				colorClass: body.htmlClass, pageLabel: body.pageLabel, zotero: body.zotero,
-				range: { startLine: buf[0], endLine: buf[buf.length - 1] }, originalMarkdown: seg.join("\n").trim(),
-			});
-		}
-		buf = [];
-	};
-	for (let i = rs; i < re; i++) {
-		if (covered[i]) { flush(false); continue; }
-		buf.push(i);
-		if (PAGE_LINE.test(lines[i].trim())) flush(true);
-	}
-	flush(false);
 
 	// ── unique ids within a note (re-import without a date filter duplicates annotations) ──
 	const seen = new Map<string, number>();

@@ -1,4 +1,6 @@
 import type { GroupKey, SortKey } from "../query/annotation-query.ts";
+import { DEFAULT_PARSE_LABELS } from "../parser/types.ts";
+import type { ParseLabels } from "../parser/types.ts";
 
 export interface ColorDef {
 	zotero: string; // Zotero colour name shown as "original colour"
@@ -20,26 +22,27 @@ export const DEFAULT_COLORS: ColorTable = {
 
 export interface RASettings {
 	colors: ColorTable;
-	/** Name of the Zotero Integration persist block; its %% begin/end %% markers bound legacy parsing. */
-	persistBlockName: string;
 	/** Folder prefixes to index. Empty = whole vault. */
 	scopeFolders: string[];
+	/** Comma-separated labels used before a comment, without the colon. */
+	commentLabels: string;
+	/** Comma-separated labels used before tags, without the colon. */
+	tagsLabels: string;
 	/** Frontmatter key holding project links. */
 	projectsKey: string;
 	/** Use colour emoji in tags (🔴 …) when an annotation has no highlight colour. */
 	inferColorFromTags: boolean;
-	showLegacyBadge: boolean;
 	defaultSort: SortKey;
 	defaultGroup: GroupKey;
 }
 
 export const DEFAULT_SETTINGS: RASettings = {
 	colors: DEFAULT_COLORS,
-	persistBlockName: "annotations",
 	scopeFolders: [],
+	commentLabels: DEFAULT_PARSE_LABELS.commentLabels.join(", "),
+	tagsLabels: DEFAULT_PARSE_LABELS.tagsLabels.join(", "),
 	projectsKey: "projects",
 	inferColorFromTags: true,
-	showLegacyBadge: false,
 	defaultSort: "paper",
 	defaultGroup: "none",
 };
@@ -54,5 +57,19 @@ export function mergeSettings(saved: unknown): RASettings {
 		if (out.colors[cls] && typeof def?.alias === "string") out.colors[cls].alias = def.alias;
 	}
 	if (!Array.isArray(out.scopeFolders)) out.scopeFolders = [];
+	if (typeof out.commentLabels !== "string" || !out.commentLabels.trim()) out.commentLabels = base.commentLabels;
+	if (typeof out.tagsLabels !== "string" || !out.tagsLabels.trim()) out.tagsLabels = base.tagsLabels;
 	return out;
+}
+
+/** Parses the comma-separated label settings into the parser's label lists. */
+export function toParseLabels(s: RASettings): ParseLabels {
+	const list = (value: string, fallback: string[]) => {
+		const labels = value.split(",").map((x) => x.trim().replace(/:+$/, "").trim()).filter(Boolean);
+		return labels.length ? labels : fallback;
+	};
+	return {
+		commentLabels: list(s.commentLabels, DEFAULT_PARSE_LABELS.commentLabels),
+		tagsLabels: list(s.tagsLabels, DEFAULT_PARSE_LABELS.tagsLabels),
+	};
 }

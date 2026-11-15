@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting, debounce } from "obsidian";
 import type RAPlugin from "../main.ts";
-import { DEFAULT_COLORS } from "./settings.ts";
+import { DEFAULT_COLORS, DEFAULT_SETTINGS } from "./settings.ts";
 import type { GroupKey, SortKey } from "../query/annotation-query.ts";
 
 export class RASettingTab extends PluginSettingTab {
@@ -28,9 +28,14 @@ export class RASettingTab extends PluginSettingTab {
 			});
 
 		new Setting(el)
-			.setName("Zotero Integration block name")
-			.setDesc("The name used in {% persist \"…\" %}. Its %% begin … %% / %% end … %% markers bound the legacy parser.")
-			.addText((t) => t.setValue(s.persistBlockName).onChange((v) => { s.persistBlockName = v.trim() || "annotations"; saveReindex(); }));
+			.setName("Comment label(s)")
+			.setDesc("Comma-separated labels, without the colon. Default: Comment, My comment. Bold and plain forms both match.")
+			.addText((t) => t.setValue(s.commentLabels).onChange((v) => { s.commentLabels = v.trim() || DEFAULT_SETTINGS.commentLabels; saveReindex(); }));
+
+		new Setting(el)
+			.setName("Tags label(s)")
+			.setDesc("Comma-separated labels, without the colon. Default: Tags, Annotation tags. All tags on the line are indexed.")
+			.addText((t) => t.setValue(s.tagsLabels).onChange((v) => { s.tagsLabels = v.trim() || DEFAULT_SETTINGS.tagsLabels; saveReindex(); }));
 
 		new Setting(el)
 			.setName("Project property")
@@ -68,10 +73,6 @@ export class RASettingTab extends PluginSettingTab {
 			const o: Record<GroupKey, string> = { none: "None", paper: "Paper", category: "Category", project: "Project" };
 			d.addOptions(o).setValue(s.defaultGroup).onChange((v) => { s.defaultGroup = v as GroupKey; saveSoft(); });
 		});
-		new Setting(el)
-			.setName("Show “legacy parse” badge")
-			.setDesc("Marks annotations whose boundaries were inferred rather than declared by ra: markers.")
-			.addToggle((t) => t.setValue(s.showLegacyBadge).onChange((v) => { s.showLegacyBadge = v; saveSoft(); }));
 
 		new Setting(el).setName("Maintenance").setHeading();
 		const idx = p.index;

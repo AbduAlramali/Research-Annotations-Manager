@@ -1,6 +1,7 @@
 import { parseNote } from "../parser/annotation-parser.ts";
 import { inferColorFromTags } from "../parser/color-infer.ts";
-import type { ParseWarning, ResearchAnnotation } from "../parser/types.ts";
+import { DEFAULT_PARSE_LABELS } from "../parser/types.ts";
+import type { ParseLabels, ParseWarning, ResearchAnnotation } from "../parser/types.ts";
 
 export interface IndexedAnnotation {
 	/** `${path}::${id}` – unique across the vault. */
@@ -12,23 +13,23 @@ export interface IndexedAnnotation {
 	order: number;
 }
 export interface NoteEntry { path: string; items: IndexedAnnotation[]; warnings: ParseWarning[] }
-export interface IndexConfig { persistName: string; inferColor: boolean }
+export interface IndexConfig { inferColor: boolean; labels: ParseLabels }
 
-const CANDIDATE = /zotero:\/\/|%%\s*ra:begin/;
+const CANDIDATE = /%%\s*ra:begin/;
 
 /**
  * Per-note incremental index. The vault file stays the source of truth: only a changed note is re-parsed,
  * and a note with no annotations is not stored at all.
  */
 export class AnnotationIndex {
-	config: IndexConfig = { persistName: "annotations", inferColor: true };
+	config: IndexConfig = { inferColor: true, labels: DEFAULT_PARSE_LABELS };
 	private notes = new Map<string, NoteEntry>();
 	private flat: IndexedAnnotation[] | null = null;
 
 	/** Returns the number of annotations now indexed for this note. */
 	updateNote(path: string, text: string): number {
 		if (!CANDIDATE.test(text)) { this.removeNote(path); return 0; }
-		const parsed = parseNote(text, path, this.config.persistName);
+		const parsed = parseNote(text, path, this.config.labels);
 		if (!parsed.annotations.length) { this.removeNote(path); return 0; }
 		const items = parsed.annotations.map((a, order): IndexedAnnotation => {
 			if (!a.colorClass && this.config.inferColor) {

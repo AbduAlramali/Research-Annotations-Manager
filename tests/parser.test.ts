@@ -9,9 +9,9 @@ const note = readFileSync(new URL("../fixtures/sample-note.md", import.meta.url)
 const { annotations: A, warnings } = parseNote(note, "n.md");
 const byId = (id: string) => A.find((a) => a.id === id)!;
 
-test("finds 4 annotations, both modes, no warnings", () => {
+test("finds 4 explicit annotations, no warnings", () => {
 	assert.equal(A.length, 4);
-	assert.deepEqual(A.map((a) => a.mode), ["explicit", "explicit", "legacy", "legacy"]);
+	assert.deepEqual(A.map((a) => a.id), ["AKAGJ6KP", "IMG00001", "LEGACY01", "LEGACY02"]);
 	assert.deepEqual(warnings, []);
 });
 
@@ -37,21 +37,35 @@ test("explicit: image-only, no page link, colour from header", () => {
 	assert.deepEqual(a.images, ["media/fig4.png"]); // |400 stripped
 });
 
-test("legacy: segmented by page link, id from URI, roman page label kept", () => {
-	const a = byId("LEGACY01");
-	assert.equal(a.confidence, "heuristic");
-	assert.equal(a.pageLabel, "iv");
-	assert.equal(a.zotero?.page, "4"); // opaque, differs from label
-	assert.equal(a.colorClass, "hltr-green");
-	assert.equal(a.comment, "Method detail: \\[ W' = W + BA \\]");
-	assert.equal(byId("LEGACY02").comment, undefined);
-});
-
-test("legacy without persist markers: leading prose is not glued", () => {
+test("ra blocks parse without a persist wrapper; prose is not glued", () => {
 	const bare = note.replace(/%% (begin|end) annotations %%\n/g, "");
 	const r = parseNote(bare, "n.md").annotations;
 	assert.equal(r.length, 4);
 	assert.ok(!r.some((a) => a.originalMarkdown.includes("Intro prose")));
+});
+
+test("annotations outside ra blocks are ignored", () => {
+	const unmarked = `%% begin annotations %%
+<mark class="hltr-green">Old annotation.</mark>
+**My comment:** old comment
+[Page 4](zotero://open-pdf/library/items/BEPMNZ42?page=4&annotation=OLDKEY)
+%% end annotations %%`;
+	const r = parseNote(unmarked, "n.md");
+	assert.deepEqual(r.annotations, []);
+	assert.deepEqual(r.warnings, []);
+});
+
+test("Comment/Tags labels work by default", () => {
+	const r = parseNote('%% ra:begin id="LABELS" color="Cyan" %%\n<mark class="hltr-cyan">x</mark>\n**Comment:** note text\n**Tags:** #one #two, #three\n%% ra:end %%', "n.md");
+	assert.equal(r.annotations[0].comment, "note text");
+	assert.deepEqual(r.annotations[0].tags, ["one", "two", "three"]);
+});
+
+test("custom comment/tags labels are configurable", () => {
+	const text = '%% ra:begin id="CUSTOM" color="Cyan" %%\n<mark class="hltr-cyan">x</mark>\n**Note:** custom text\n**Labels:** #alpha #beta\n%% ra:end %%';
+	const r = parseNote(text, "n.md", { commentLabels: ["Note"], tagsLabels: ["Labels"] });
+	assert.equal(r.annotations[0].comment, "custom text");
+	assert.deepEqual(r.annotations[0].tags, ["alpha", "beta"]);
 });
 
 test("duplicate ids (re-import) are disambiguated and warned", () => {
@@ -63,8 +77,7 @@ test("duplicate ids (re-import) are disambiguated and warned", () => {
 test("malformed: unterminated block, empty header attrs don't throw", () => {
 	const r = parseNote('%% ra:begin id="X" color="" %%\n<mark class="hltr-red">a</mark>\n', "n.md");
 	assert.ok(r.warnings.some((w) => w.kind === "unterminated-block"));
-	// salvaged by the legacy path, flagged as heuristic, never authoritative
-	assert.deepEqual(r.annotations.map((a) => a.confidence), ["heuristic"]);
+	assert.deepEqual(r.annotations, []);
 	const ok = parseNote('%% ra:begin id="Y" color="" type="" %%\nplain\n%% ra:end %%', "n.md");
 	assert.equal(ok.annotations[0].colorClass, undefined);
 });
